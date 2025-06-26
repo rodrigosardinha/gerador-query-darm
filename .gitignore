@@ -1,0 +1,14 @@
+# Ignorar conteúdo das pastas darms e inserts, mas manter as pastas
+
+darms/*
+!darms/.gitkeep
+
+inserts/*
+!inserts/.gitkeep
+
+# Outros padrões já existentes
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup 
