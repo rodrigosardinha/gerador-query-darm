@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gerador-query-darm"
+version = "1.0.0"
+description = "Sistema automatizado para processamento de DARMs (Documento de Arrecadação de Receitas Municipais)"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Rodrigo Sardinha", email = "rodrigo.sardinha@example.com"}
+]
+maintainers = [
+    {name = "Rodrigo Sardinha", email = "rodrigo.sardinha@example.com"}
+]
+keywords = ["darm", "pdf", "processamento", "receitas", "municipais", "sql", "banco-dados"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Filters",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "PyPDF2==3.0.1",
+    "pathlib2==2.3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio>=0.18.0",
+    "black>=21.0",
+    "flake8>=3.8",
+    "mypy>=0.800",
+]
+
+[project.urls]
+Homepage = "https://github.com/rodrigosardinha/gerador-query-darm"
+Documentation = "https://github.com/rodrigosardinha/gerador-query-darm#readme"
+Repository = "https://github.com/rodrigosardinha/gerador-query-darm"
+"Bug Tracker" = "https://github.com/rodrigosardinha/gerador-query-darm/issues"
+
+[project.scripts]
+darm-processor = "darm_processor:main"
+
+[tool.setuptools]
+packages = ["darm_processor"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.txt", "*.py"] 

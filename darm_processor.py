@@ -6,6 +6,8 @@ from pathlib import Path
 import PyPDF2
 import io
 
+__version__ = "1.0.0"
+
 class DarmProcessor:
     def __init__(self):
         self.darms_dir = Path(__file__).parent / 'darms'

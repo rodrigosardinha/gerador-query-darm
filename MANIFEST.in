@@ -1,0 +1,15 @@
+include README.md
+include requirements.txt
+include LICENSE
+include *.py
+include darms/.gitkeep
+include inserts/.gitkeep
+recursive-include darms *.pdf
+recursive-include inserts *.sql
+recursive-include inserts *.md
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .git
+global-exclude .gitignore
+global-exclude .DS_Store
+global-exclude *.log 

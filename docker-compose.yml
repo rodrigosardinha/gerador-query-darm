@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  darm-processor:
+    build: .
+    container_name: darm-processor
+    volumes:
+      # Volume para PDFs de entrada
+      - ./darms:/app/darms
+      # Volume para arquivos SQL de saída
+      - ./inserts:/app/inserts
+      # Volume para logs (opcional)
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Comando personalizado (opcional)
+    # command: python darm_processor.py
+    restart: unless-stopped
+    
+  # Serviço opcional para interface web (futuro)
+  # web-interface:
+  #   build: ./web
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - darm-processor
+  #   volumes:
+  #     - ./darms:/app/darms
+  #     - ./inserts:/app/inserts
+
+volumes:
+  darms-data:
+  inserts-data:
+  logs-data: 

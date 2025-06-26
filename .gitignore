@@ -6,9 +6,57 @@ darms/*
 inserts/*
 !inserts/.gitkeep
 
-# Outros padrões já existentes
+# Arquivos de build e distribuição
+dist/
+build/
+*.egg-info/
+*.egg
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Arquivos temporários
 *.tmp
 *.temp
 *.log
 *.bak
-*.backup 
+*.backup
+
+# Arquivos de ambiente virtual
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos de teste
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# Arquivos de distribuição temporários
+VERSION_INFO.txt
+install.bat
+install.sh
+
+# Arquivos de Docker
+.dockerignore
+
+# Arquivos de backup do PyInstaller
+*.spec 
