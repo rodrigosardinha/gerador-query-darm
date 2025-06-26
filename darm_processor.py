@@ -25,18 +25,9 @@ class DarmProcessor:
     async def load_processed_guias(self):
         """Carregar guias já processadas de arquivos existentes"""
         try:
-            # Verificar arquivos SQL existentes para carregar guias já processadas
-            if self.output_dir.exists():
-                sql_files = [f for f in self.output_dir.iterdir() 
-                           if f.suffix.lower() == '.sql']
-                
-                for file in sql_files:
-                    match = re.search(r'INSERT_DARM_PAGO_(\d+)\.sql', file.name)
-                    if match:
-                        numero_guia = match.group(1)
-                        self.processed_guias.add(numero_guia)
-                        self.guias_processadas.append(numero_guia)
-                        print(f"Guia {numero_guia} já processada (encontrada em {file.name})")
+            # Não carregar guias processadas para permitir reprocessamento completo
+            # As guias serão processadas novamente a cada execução
+            print("🔄 Modo de reprocessamento ativado - todos os arquivos serão sobrescritos")
         except Exception as error:
             print(f'Erro ao carregar guias processadas: {error}')
 
@@ -85,19 +76,36 @@ AND TP_LOTE_D = 1;"""
                 # Extrair apenas a parte VALUES do INSERT
                 values_match = re.search(r'VALUES\s*\(\s*(.+?)\s*\);', sql_insert, re.DOTALL)
                 if values_match:
-                    # Gerar SQ_DOC único no Python: últimos 3 dígitos da guia + últimos 3 dígitos do timestamp + índice
+                    values_part = values_match.group(1)
+                    # Split dos valores considerando vírgulas
+                    # Atenção: isso só funciona porque todos os campos são simples (sem vírgula interna)
+                    valores = [v.strip() for v in values_part.split(',')]
+                    # O campo SQ_DOC é o 8º campo (índice 7)
                     guia = self.guias_processadas[index]
                     guia_last3 = int(guia) % 1000
                     timestamp_last3 = timestamp % 1000
                     sq_doc = (guia_last3 * 1000) + timestamp_last3 + index
-                    
-                    # Substituir a expressão SQL dinâmica pelo valor calculado no Python
-                    values_part = values_match.group(1).replace(
-                        r'\(\(\([^)]+\)\s*\*\s*1000\)\s*\+\s*\(UNIX_TIMESTAMP\(\)\s*%\s*1000\)\)\s*%\s*1000000',
-                        str(sq_doc)
-                    )
-                    
-                    simple_insert_statements.append(f"({values_part})")
+                    valores[7] = str(sq_doc)
+                    simple_insert_statements.append(f"({', '.join(valores)})")
+
+            # Melhorar a formatação: igual aos arquivos individuais - compacta mas legível
+            formatted_inserts = []
+            for stmt in simple_insert_statements:
+                # Remover parênteses e quebrar por vírgulas
+                valores = stmt.strip('()').split(', ')
+                
+                # Formatar igual aos arquivos individuais: quebras lógicas por grupos
+                formatted_stmt = f"""    (
+        {valores[0]}, {valores[1]}, {valores[2]}, {valores[3]}, {valores[4]}, {valores[5]}, {valores[6]},
+        {valores[7]}, {valores[8]}, {valores[9]}, {valores[10]}, {valores[11]},
+        {valores[12]}, {valores[13]}, {valores[14]},
+        {valores[15]}, {valores[16]}, {valores[17]}, {valores[18]},
+        {valores[19]}, {valores[20]}, {valores[21]}, {valores[22]}, {valores[23]}, {valores[24]},
+        {valores[25]}, {valores[26]}, {valores[27]}, {valores[28]}, {valores[29]}, {valores[30]},
+        {valores[31]}, {valores[32]}
+    )"""
+                
+                formatted_inserts.append(formatted_stmt)
 
             single_sql_content = f"""use silfae;
 
@@ -108,8 +116,8 @@ INSERT INTO FarrDarmsPagos (
     NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL,
     VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS,
     processado, criticaProcessamento
-) VALUES 
-{','.join(simple_insert_statements)};"""
+) VALUES
+{',\n'.join(formatted_inserts)};"""
 
             single_sql_path = self.output_dir / 'INSERT_TODOS_DARMs.sql'
             
@@ -256,19 +264,16 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 
                 # Verificar se a guia já foi processada nesta sessão
                 if darm_data['numeroGuia'] in self.processed_guias:
-                    print(f'⚠️  ATENÇÃO: Guia {darm_data["numeroGuia"]} já foi processada nesta sessão. Pulando...')
-                    return
+                    print(f'🔄 Reprocessando guia {darm_data["numeroGuia"]} (já processada nesta sessão)')
                 
                 # Verificar se já existe um arquivo SQL para esta guia
                 numero_guia = darm_data.get('numeroGuia', 'SEM_GUIA')
                 sql_filename = f'INSERT_DARM_PAGO_{numero_guia}.sql'
                 sql_path = self.output_dir / sql_filename
                 
+                # Sempre sobrescrever arquivos existentes
                 if sql_path.exists():
-                    print(f'⚠️  ATENÇÃO: Arquivo SQL já existe para guia {numero_guia}. Pulando...')
-                    self.processed_guias.add(darm_data['numeroGuia'])
-                    self.guias_processadas.append(darm_data['numeroGuia'])
-                    return
+                    print(f'🔄 Sobrescrevendo arquivo existente para guia {numero_guia}')
                 
                 # Verificar se a guia já existe no banco de dados
                 await self.check_guia_exists(darm_data['numeroGuia'])
@@ -327,9 +332,9 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 
                 # Código de receita - extrair do campo RECEITA
                 'codigoReceita': [
-                    r'(?:RECEITA|Receita)\s*(\d+-\d+)',
-                    r'01\.\s*RECEITA\s*(\d+-\d+)',
-                    r'(\d+)-(\d+)'  # Para formato como "262-3"
+                    r'(?:RECEITA|Receita)\s*(\d{1,4}-\d{1,2})(?:[^\d]|$)',  # Parar em caractere não-número ou fim
+                    r'01\.\s*RECEITA\s*(\d{1,4}-\d{1,2})(?:[^\d]|$)',
+                    r'(\d{1,4})-(\d{1,2})(?:[^\d]|$)'  # Para formato como "262-3"
                 ],
                 
                 # Valor principal - múltiplos padrões
@@ -388,7 +393,19 @@ Gerado automaticamente pelo DarmProcessor (Python)
                         if key == 'codigoReceita' and len(match.groups()) > 1:
                             data[key] = match.group(1) + match.group(2)  # Concatenar os dois números
                         elif key == 'codigoReceita' and '-' in match.group(1):
-                            data[key] = match.group(1).replace('-', '')  # Remover hífen
+                            # Garantir que pega apenas o padrão correto (ex: 262-3)
+                            codigo_completo = match.group(1)
+                            # Verificar se o padrão é válido (números-hífen-números)
+                            if re.match(r'^\d{1,4}-\d{1,2}$', codigo_completo):
+                                data[key] = codigo_completo.replace('-', '')  # Remover hífen
+                            else:
+                                # Se não for padrão válido, tentar extrair apenas a parte correta
+                                partes = codigo_completo.split('-')
+                                if len(partes) >= 2:
+                                    # Pegar apenas os primeiros dígitos de cada parte
+                                    parte1 = partes[0][:4]  # Máximo 4 dígitos
+                                    parte2 = partes[1][:2]  # Máximo 2 dígitos
+                                    data[key] = parte1 + parte2
                         elif key == 'numeroGuia':
                             data[key] = match.group(1).lstrip('0') or '0'  # Remove zeros à esquerda
                         elif key == 'codigoBarras':
