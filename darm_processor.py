@@ -5,21 +5,37 @@ from datetime import datetime
 from pathlib import Path
 import PyPDF2
 import io
+import sys
 
 __version__ = "1.0.0"
 
 class DarmProcessor:
     def __init__(self):
-        self.darms_dir = Path(__file__).parent / 'darms'
-        self.output_dir = Path(__file__).parent / 'inserts'
+        # Determinar o diretório base (funciona tanto para script quanto para executável)
+        if getattr(sys, 'frozen', False):
+            # Executando como executável PyInstaller
+            base_dir = Path(sys._MEIPASS)
+            # Para executável, usar diretório onde o .exe está localizado
+            self.base_dir = Path(sys.executable).parent
+        else:
+            # Executando como script Python
+            self.base_dir = Path(__file__).parent
+        
+        self.darms_dir = self.base_dir / 'darms'
+        self.output_dir = self.base_dir / 'inserts'
         self.processed_guias = set()  # Para controlar guias já processadas
         self.guias_processadas = []  # Lista para rastrear guias processadas
         self.all_sql_inserts = []  # Array para armazenar todos os INSERTs
 
     async def init(self):
         """Inicializar o processador"""
-        # Criar diretório de saída se não existir
+        # Criar diretórios se não existirem
+        self.darms_dir.mkdir(exist_ok=True)
         self.output_dir.mkdir(exist_ok=True)
+        
+        print(f"📁 Diretório base: {self.base_dir}")
+        print(f"📁 Diretório DARMs: {self.darms_dir}")
+        print(f"📁 Diretório saída: {self.output_dir}")
         
         # Carregar guias já processadas de arquivos existentes
         await self.load_processed_guias()

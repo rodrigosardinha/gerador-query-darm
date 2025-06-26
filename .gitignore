@@ -59,4 +59,8 @@ install.sh
 .dockerignore
 
 # Arquivos de backup do PyInstaller
-*.spec 
+*.spec
+
+# Arquivos temporários do PyInstaller
+temp_darms/
+temp_inserts/ 

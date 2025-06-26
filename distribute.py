@@ -193,27 +193,23 @@ def create_executable_package():
         import PyInstaller
         print("📦 Criando executável...")
         
-        # Comando PyInstaller
-        cmd = [
-            "pyinstaller",
-            "--onefile",
-            "--name=darm-processor",
-            "--add-data=config.py;.",
-            "--add-data=requirements.txt;.",
-            "darm_processor.py"
-        ]
+        # Usar o script específico para executável
+        from build_executable import create_package_with_executable
+        zip_path = create_package_with_executable()
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print("✅ Executável criado com sucesso!")
-            return Path("dist/darm-processor.exe")
+        if zip_path and zip_path.exists():
+            print("✅ Pacote executável criado com sucesso!")
+            return zip_path
         else:
-            print(f"❌ Erro ao criar executável: {result.stderr}")
+            print("❌ Erro ao criar pacote executável")
             return None
             
     except ImportError:
         print("⚠️  PyInstaller não encontrado. Pulando criação de executável.")
+        print("💡 Para instalar: pip install pyinstaller")
+        return None
+    except Exception as e:
+        print(f"❌ Erro ao criar executável: {e}")
         return None
 
 def main():
