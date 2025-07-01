@@ -337,10 +337,10 @@ Gerado automaticamente pelo DarmProcessor (Python)
             patterns = {
                 # Número de inscrição - múltiplos padrões
                 'inscricao': [
-                    r'(?:Inscrição|INSCRIÇÃO|Inscrição Municipal|Inscrição)\s*:?\s*(\d+)',
-                    r'(?:Inscrição|INSCRIÇÃO)\s*(\d+)',
-                    r'Insc\.?\s*:?\s*(\d+)',
-                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d+)'
+                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d{8})',  # Exatamente 8 dígitos
+                    r'(?:Inscrição|INSCRIÇÃO|Inscrição Municipal|Inscrição)\s*:?\s*(\d{8})',  # Exatamente 8 dígitos
+                    r'(?:Inscrição|INSCRIÇÃO)\s*(\d{8})',  # Exatamente 8 dígitos
+                    r'Insc\.?\s*:?\s*(\d{8})'  # Exatamente 8 dígitos
                 ],
                 
                 # Código de barras - pega todas as sequências de dígitos, junta tudo, remove pontos e espaços
