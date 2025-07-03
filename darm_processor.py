@@ -52,17 +52,9 @@ class DarmProcessor:
     async def check_guia_exists(self, numero_guia):
         """Verificar se a guia já existe no banco de dados"""
         try:
-            # Gerar SQL para verificar se a guia já existe
+            # Gerar SQL para verificar se a guia já existe no formato simplificado para Control-M
             check_sql = f"""use silfae;
-
-SELECT COUNT(*) as total FROM FarrDarmsPagos 
-WHERE NR_GUIA = {numero_guia} 
-AND AA_EXERCICIO = 2025
-AND CD_BANCO = 70
-AND NR_BDA = 37
-AND NR_COMPLEMENTO = 0
-AND NR_LOTE_NSA = 730
-AND TP_LOTE_D = 1;"""
+SELECT COUNT(*) as total FROM FarrDarmsPagos WHERE NR_GUIA = {numero_guia} AND AA_EXERCICIO = 2025 AND CD_BANCO = 70 AND NR_BDA = 37 AND NR_COMPLEMENTO = 0 AND NR_LOTE_NSA = 730 AND TP_LOTE_D = 1;"""
 
             check_filename = f'CHECK_GUIA_{numero_guia}.sql'
             check_path = self.output_dir / check_filename
@@ -80,7 +72,7 @@ AND TP_LOTE_D = 1;"""
             return False
 
     async def generate_single_sql_file(self):
-        """Gerar arquivo SQL único com todos os INSERTs"""
+        """Gerar arquivo SQL único com todos os INSERTs no formato simplificado para Control-M"""
         try:
             if not self.all_sql_inserts:
                 print('📭 Nenhum INSERT para gerar no arquivo único.')
@@ -106,36 +98,9 @@ AND TP_LOTE_D = 1;"""
                     valores[7] = str(sq_doc)
                     simple_insert_statements.append(f"({', '.join(valores)})")
 
-            # Melhorar a formatação: igual aos arquivos individuais - compacta mas legível
-            formatted_inserts = []
-            for stmt in simple_insert_statements:
-                # Remover parênteses e quebrar por vírgulas
-                valores = stmt.strip('()').split(', ')
-                
-                # Formatar igual aos arquivos individuais: quebras lógicas por grupos
-                formatted_stmt = f"""    (
-        {valores[0]}, {valores[1]}, {valores[2]}, {valores[3]}, {valores[4]}, {valores[5]}, {valores[6]},
-        {valores[7]}, {valores[8]}, {valores[9]}, {valores[10]}, {valores[11]},
-        {valores[12]}, {valores[13]}, {valores[14]},
-        {valores[15]}, {valores[16]}, {valores[17]}, {valores[18]},
-        {valores[19]}, {valores[20]}, {valores[21]}, {valores[22]}, {valores[23]}, {valores[24]},
-        {valores[25]}, {valores[26]}, {valores[27]}, {valores[28]}, {valores[29]}, {valores[30]},
-        {valores[31]}, {valores[32]}
-    )"""
-                
-                formatted_inserts.append(formatted_stmt)
-
+            # Formato simplificado: uma linha por INSERT para compatibilidade com Control-M
             single_sql_content = f"""use silfae;
-
-INSERT INTO FarrDarmsPagos (
-    id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D,
-    SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO,
-    DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS,
-    NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL,
-    VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS,
-    processado, criticaProcessamento
-) VALUES
-{',\n'.join(formatted_inserts)};"""
+INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES {', '.join(simple_insert_statements)};"""
 
             single_sql_path = self.output_dir / 'INSERT_TODOS_DARMs.sql'
             
@@ -146,7 +111,7 @@ INSERT INTO FarrDarmsPagos (
             print('📄 Arquivo SQL único gerado: INSERT_TODOS_DARMs.sql')
             print(f'📊 Contém {len(self.all_sql_inserts)} INSERT statements')
             print('🔧 Formato: ISO 8859-1 (Latin-1) - Compatível com Control-M')
-            print('⚡ Versão: Simples (sem transação, SQ_DOC calculado no Python)')
+            print('⚡ Versão: Simplificada (formato de uma linha) - Otimizada para Control-M')
             
             # Mostrar SQ_DOC gerados
             sq_docs_info = []
@@ -187,6 +152,7 @@ INSERT INTO FarrDarmsPagos (
 
 ### Compatibilidade Control-M:
 - ✅ **Formato ISO 8859-1 (Latin-1)** - Compatível com Control-M
+- ✅ **Formato simplificado (uma linha)** - Otimizado para Control-M
 - ✅ **Sem comentários** - Arquivos SQL limpos
 - ✅ **Caracteres especiais removidos** - Acentos e símbolos convertidos
 - ✅ **Estrutura simplificada** - Otimizada para automação
@@ -462,7 +428,7 @@ Gerado automaticamente pelo DarmProcessor (Python)
             return None
 
     def generate_sql_insert(self, darm_data):
-        """Gerar SQL INSERT para os dados do DARM"""
+        """Gerar SQL INSERT para os dados do DARM no formato simplificado para Control-M"""
         # Converter data de vencimento do formato DD/MM/YYYY para YYYY-MM-DD
         data_vencimento = None
         if darm_data.get('dataVencimento'):
@@ -490,25 +456,9 @@ Gerado automaticamente pelo DarmProcessor (Python)
             numero_guia = self.remove_leading_zeros(numero_guia)
         sq_doc_expression = f"((({numero_guia} % 1000) * 1000) + (UNIX_TIMESTAMP() % 1000)) % 1000000"
 
-        # Gerar SQL limpo sem comentários usando NOW() para datas
+        # Gerar SQL no formato simplificado (uma linha) para compatibilidade com Control-M
         sql = f"""use silfae;
-
-INSERT INTO FarrDarmsPagos (
-    id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D,
-    SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO,
-    DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS,
-    NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL,
-    VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS,
-    processado, criticaProcessamento
-) VALUES (
-    NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1,
-    {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL,
-    NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(),
-    '{darm_data['inscricao']}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'},
-    NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal},
-    0.00, 0.00, NULL, NULL, NULL, 0.00,
-    0, NULL
-);"""
+INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES (NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1, {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL, NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(), '{darm_data['inscricao']}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'}, NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal}, 0.00, 0.00, NULL, NULL, NULL, 0.00, 0, NULL);"""
 
         return sql
 
@@ -517,12 +467,22 @@ INSERT INTO FarrDarmsPagos (
         return value.lstrip('0') or '0'
 
     def parse_monetary_value(self, value):
-        """Converter valor monetário para formato numérico"""
+        """Converter valor monetário para formato numérico com 2 casas decimais, mesmo com ruído"""
         if not value:
             return '0.00'
         
-        # Remover R$, espaços e pontos de milhares
-        clean_value = re.sub(r'[R$\s]', '', value)
+        # Remover tudo que não for número, vírgula ou ponto
+        clean_value = re.sub(r'[^\d,\.]', '', value)
+        
+        # Se houver mais de uma vírgula ou ponto, manter só o último separador decimal
+        if clean_value.count(',') > 1 or clean_value.count('.') > 1:
+            # Substituir todos os pontos por vazio, exceto o último
+            if ',' in clean_value:
+                partes = clean_value.split(',')
+                clean_value = ''.join(partes[:-1]) + ',' + partes[-1]
+            if '.' in clean_value:
+                partes = clean_value.split('.')
+                clean_value = ''.join(partes[:-1]) + '.' + partes[-1]
         
         # Se tem vírgula, tratar como separador decimal brasileiro
         if ',' in clean_value:
