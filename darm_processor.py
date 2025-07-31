@@ -78,11 +78,21 @@ SELECT COUNT(*) as total FROM FarrDarmsPagos WHERE NR_GUIA = {numero_guia} AND A
                 print('📭 Nenhum INSERT para gerar no arquivo único.')
                 return
 
+            # Filtrar apenas INSERTs válidos
+            valid_inserts = []
+            for sql_insert in self.all_sql_inserts:
+                if sql_insert and len(sql_insert.strip()) > 50:
+                    valid_inserts.append(sql_insert)
+
+            if not valid_inserts:
+                print('📭 Nenhum INSERT válido encontrado para gerar o arquivo único.')
+                return
+
             # Gerar SQ_DOC únicos no Python
             timestamp = int(datetime.now().timestamp() * 1000)
             simple_insert_statements = []
             
-            for index, sql_insert in enumerate(self.all_sql_inserts):
+            for index, sql_insert in enumerate(valid_inserts):
                 # Extrair apenas a parte VALUES do INSERT
                 values_match = re.search(r'VALUES\s*\(\s*(.+?)\s*\);', sql_insert, re.DOTALL)
                 if values_match:
@@ -91,16 +101,26 @@ SELECT COUNT(*) as total FROM FarrDarmsPagos WHERE NR_GUIA = {numero_guia} AND A
                     # Atenção: isso só funciona porque todos os campos são simples (sem vírgula interna)
                     valores = [v.strip() for v in values_part.split(',')]
                     # O campo SQ_DOC é o 8º campo (índice 7)
-                    guia = self.guias_processadas[index]
-                    guia_last3 = int(guia) % 1000
-                    timestamp_last3 = timestamp % 1000
-                    sq_doc = (guia_last3 * 1000) + timestamp_last3 + index
-                    valores[7] = str(sq_doc)
-                    simple_insert_statements.append(f"({', '.join(valores)})")
+                    if index < len(self.guias_processadas):
+                        guia = self.guias_processadas[index]
+                        guia_last3 = int(guia) % 1000
+                        timestamp_last3 = timestamp % 1000
+                        sq_doc = (guia_last3 * 1000) + timestamp_last3 + index
+                        valores[7] = str(sq_doc)
+                        simple_insert_statements.append(f"({', '.join(valores)})")
+
+            if not simple_insert_statements:
+                print('📭 Nenhum statement válido para gerar o arquivo único.')
+                return
 
             # Formato simplificado: uma linha por INSERT para compatibilidade com Control-M
             single_sql_content = f"""use silfae;
 INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES {', '.join(simple_insert_statements)};"""
+
+            # Validar se o conteúdo foi gerado corretamente
+            if not single_sql_content or len(single_sql_content.strip()) < 100:
+                print('❌ Erro: Conteúdo SQL único está vazio ou muito pequeno')
+                return
 
             single_sql_path = self.output_dir / 'INSERT_TODOS_DARMs.sql'
             
@@ -109,13 +129,13 @@ INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, 
                 f.write(single_sql_content)
             
             print('📄 Arquivo SQL único gerado: INSERT_TODOS_DARMs.sql')
-            print(f'📊 Contém {len(self.all_sql_inserts)} INSERT statements')
+            print(f'📊 Contém {len(simple_insert_statements)} INSERT statements')
             print('🔧 Formato: ISO 8859-1 (Latin-1) - Compatível com Control-M')
             print('⚡ Versão: Simplificada (formato de uma linha) - Otimizada para Control-M')
             
             # Mostrar SQ_DOC gerados
             sq_docs_info = []
-            for i, guia in enumerate(self.guias_processadas):
+            for i, guia in enumerate(self.guias_processadas[:len(simple_insert_statements)]):
                 guia_last3 = int(guia) % 1000
                 timestamp_last3 = timestamp % 1000
                 sq_doc = (guia_last3 * 1000) + timestamp_last3 + i
@@ -191,6 +211,46 @@ Gerado automaticamente pelo DarmProcessor (Python)
         except Exception as error:
             print(f'Erro ao gerar relatório: {error}')
 
+    async def verify_sql_files(self):
+        """Verificar se os arquivos SQL foram gerados corretamente"""
+        try:
+            print('\n🔍 Verificando arquivos SQL gerados...')
+            
+            # Verificar arquivo único
+            single_sql_path = self.output_dir / 'INSERT_TODOS_DARMs.sql'
+            if single_sql_path.exists():
+                with open(single_sql_path, 'r', encoding='latin1') as f:
+                    content = f.read()
+                    if content and len(content.strip()) > 100:
+                        print(f'✅ Arquivo único válido: {single_sql_path.name} ({len(content)} caracteres)')
+                    else:
+                        print(f'❌ Arquivo único vazio ou inválido: {single_sql_path.name}')
+            else:
+                print(f'❌ Arquivo único não encontrado: {single_sql_path.name}')
+            
+            # Verificar arquivos individuais
+            individual_files = list(self.output_dir.glob('INSERT_DARM_PAGO_*.sql'))
+            valid_files = 0
+            for file_path in individual_files:
+                try:
+                    with open(file_path, 'r', encoding='latin1') as f:
+                        content = f.read()
+                        if content and len(content.strip()) > 50:
+                            valid_files += 1
+                        else:
+                            print(f'❌ Arquivo individual vazio: {file_path.name}')
+                except Exception as e:
+                    print(f'❌ Erro ao ler arquivo {file_path.name}: {e}')
+            
+            print(f'📊 Arquivos individuais válidos: {valid_files}/{len(individual_files)}')
+            
+            # Verificar arquivos de verificação
+            check_files = list(self.output_dir.glob('CHECK_GUIA_*.sql'))
+            print(f'📊 Arquivos de verificação gerados: {len(check_files)}')
+            
+        except Exception as error:
+            print(f'❌ Erro ao verificar arquivos SQL: {error}')
+
     async def process_darms(self):
         """Processar todos os DARMs"""
         try:
@@ -214,6 +274,9 @@ Gerado automaticamente pelo DarmProcessor (Python)
             # Processar cada arquivo PDF
             for pdf_file in pdf_files:
                 await self.process_pdf_file(pdf_file)
+
+            # Verificar arquivos SQL gerados
+            await self.verify_sql_files()
 
             # Gerar relatório final
             await self.generate_report()
@@ -268,15 +331,24 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 
                 sql_content = self.generate_sql_insert(darm_data)
                 
-                # Escrever arquivo em encoding latin1
-                with open(sql_path, 'w', encoding='latin1') as f:
-                    f.write(sql_content)
-                
-                # Armazenar o INSERT para o arquivo único
-                self.all_sql_inserts.append(sql_content)
-                
-                print(f'✅ Arquivo SQL gerado: {sql_filename}')
-                print(f'📊 Guias processadas até agora: {len(self.guias_processadas)}')
+                # Verificar se o SQL foi gerado corretamente
+                if sql_content and len(sql_content.strip()) > 50:
+                    # Escrever arquivo em encoding latin1
+                    with open(sql_path, 'w', encoding='latin1') as f:
+                        f.write(sql_content)
+                    
+                    # Armazenar o INSERT para o arquivo único
+                    self.all_sql_inserts.append(sql_content)
+                    
+                    print(f'✅ Arquivo SQL gerado: {sql_filename}')
+                    print(f'📊 Guias processadas até agora: {len(self.guias_processadas)}')
+                else:
+                    print(f'❌ Erro: SQL não foi gerado corretamente para guia {numero_guia}')
+                    # Remover a guia da lista de processadas se o SQL falhou
+                    if darm_data['numeroGuia'] in self.processed_guias:
+                        self.processed_guias.remove(darm_data['numeroGuia'])
+                    if darm_data['numeroGuia'] in self.guias_processadas:
+                        self.guias_processadas.remove(darm_data['numeroGuia'])
             else:
                 print(f'❌ Não foi possível extrair dados do arquivo: {filepath.name}')
 
@@ -429,38 +501,58 @@ Gerado automaticamente pelo DarmProcessor (Python)
 
     def generate_sql_insert(self, darm_data):
         """Gerar SQL INSERT para os dados do DARM no formato simplificado para Control-M"""
-        # Converter data de vencimento do formato DD/MM/YYYY para YYYY-MM-DD
-        data_vencimento = None
-        if darm_data.get('dataVencimento'):
-            dia, mes, ano = darm_data['dataVencimento'].split('/')
-            data_vencimento = f'{ano}-{mes}-{dia} 00:00:00'
+        try:
+            # Converter data de vencimento do formato DD/MM/YYYY para YYYY-MM-DD
+            data_vencimento = None
+            if darm_data.get('dataVencimento'):
+                try:
+                    dia, mes, ano = darm_data['dataVencimento'].split('/')
+                    data_vencimento = f'{ano}-{mes}-{dia} 00:00:00'
+                except:
+                    data_vencimento = None
 
-        # Converter competência do formato MM/YYYY para YYYY
-        competencia = datetime.now().year  # Usar o ano atual dinamicamente
+            # Converter competência do formato MM/YYYY para YYYY
+            competencia = datetime.now().year  # Usar o ano atual dinamicamente
 
-        # Processar valores monetários
-        valor_principal = self.parse_monetary_value(darm_data.get('valorPrincipal'))
-        valor_total = self.parse_monetary_value(darm_data.get('valorTotal') or darm_data.get('valorPrincipal'))
+            # Processar valores monetários
+            valor_principal = self.parse_monetary_value(darm_data.get('valorPrincipal'))
+            valor_total = self.parse_monetary_value(darm_data.get('valorTotal') or darm_data.get('valorPrincipal'))
 
-        # Limitar código de barras a 48 dígitos e remover caracteres não numéricos
-        codigo_barras = None
-        if darm_data.get('codigoBarras') and str(darm_data['codigoBarras']):
-            codigo_barras = re.sub(r'\D', '', str(darm_data['codigoBarras']))[:48]
+            # Limitar código de barras a 48 dígitos e remover caracteres não numéricos
+            codigo_barras = None
+            if darm_data.get('codigoBarras') and str(darm_data['codigoBarras']):
+                codigo_barras = re.sub(r'\D', '', str(darm_data['codigoBarras']))[:48]
 
-        # Usar código de receita do PDF ou valor padrão
-        codigo_receita = darm_data.get('codigoReceita') or 2585
+            # Usar código de receita do PDF ou valor padrão
+            codigo_receita = darm_data.get('codigoReceita') or 2585
 
-        # Gerar expressão SQL para SQ_DOC dinâmico (6 dígitos: últimos 3 da guia + últimos 3 dos millisegundos)
-        numero_guia = darm_data.get('numeroGuia', '0')
-        if numero_guia != '0':
-            numero_guia = self.remove_leading_zeros(numero_guia)
-        sq_doc_expression = f"((({numero_guia} % 1000) * 1000) + (UNIX_TIMESTAMP() % 1000)) % 1000000"
+            # Gerar expressão SQL para SQ_DOC dinâmico (6 dígitos: últimos 3 da guia + últimos 3 dos millisegundos)
+            numero_guia = darm_data.get('numeroGuia', '0')
+            if numero_guia != '0':
+                numero_guia = self.remove_leading_zeros(numero_guia)
+            sq_doc_expression = f"((({numero_guia} % 1000) * 1000) + (UNIX_TIMESTAMP() % 1000)) % 1000000"
 
-        # Gerar SQL no formato simplificado (uma linha) para compatibilidade com Control-M
-        sql = f"""use silfae;
-INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES (NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1, {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL, NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(), '{darm_data['inscricao']}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'}, NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal}, 0.00, 0.00, NULL, NULL, NULL, 0.00, 0, NULL);"""
+            # Validar dados obrigatórios
+            inscricao = darm_data.get('inscricao', '')
+            if not inscricao:
+                print('❌ Erro: Inscrição não encontrada')
+                return None
 
-        return sql
+            # Gerar SQL no formato simplificado (uma linha) para compatibilidade com Control-M
+            sql = f"""use silfae;
+INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES (NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1, {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL, NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(), '{inscricao}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'}, NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal}, 0.00, 0.00, NULL, NULL, NULL, 0.00, 0, NULL);"""
+
+            # Validar se o SQL foi gerado corretamente
+            if not sql or len(sql.strip()) < 50:
+                print('❌ Erro: SQL gerado está vazio ou muito pequeno')
+                return None
+
+            print(f'✅ SQL gerado com sucesso para guia {darm_data.get("numeroGuia")}')
+            return sql
+
+        except Exception as error:
+            print(f'❌ Erro ao gerar SQL: {error}')
+            return None
 
     def remove_leading_zeros(self, value):
         """Remove zeros à esquerda apenas se houver zeros"""
