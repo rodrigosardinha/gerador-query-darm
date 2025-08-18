@@ -149,7 +149,7 @@ SECURITY_CONFIG = {
     'check_duplicates': True,       # Verificar duplicatas
     'backup_existing_files': False, # Fazer backup de arquivos existentes
     'max_file_size_mb': 50,         # Tamanho máximo de arquivo PDF (MB)
-    'allowed_extensions': ['.pdf'], # Extensões permitidas
+    'allowed_extensions': ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'], # Extensões permitidas
 }
 
 # =============================================================================
@@ -162,6 +162,36 @@ PERFORMANCE_CONFIG = {
     'max_workers': 4,               # Número máximo de workers (para processamento paralelo)
     'timeout_seconds': 30,          # Timeout para processamento de cada PDF
     'memory_limit_mb': 512,         # Limite de memória (MB)
+}
+
+# =============================================================================
+# CONFIGURAÇÕES DE OCR
+# =============================================================================
+
+# Configurações de OCR (Optical Character Recognition)
+OCR_CONFIG = {
+    'enabled': True,                # Habilitar funcionalidades de OCR
+    'language': 'por',              # Idioma para OCR (por = português)
+    'dpi': 300,                     # Resolução para conversão de PDF (DPI)
+    'preprocessing': True,          # Habilitar pré-processamento de imagem
+    'threshold_method': 'adaptive', # Método de threshold (adaptive, otsu, binary)
+    'kernel_size': 1,               # Tamanho do kernel para morfologia
+    'blur_kernel': 1,               # Tamanho do kernel para blur
+    'confidence_threshold': 60,     # Limite de confiança do OCR (%)
+    'max_pages': 10,                # Número máximo de páginas para processar
+    'timeout_per_page': 60,         # Timeout por página (segundos)
+}
+
+# Configurações de pré-processamento de imagem
+IMAGE_PREPROCESSING_CONFIG = {
+    'convert_to_grayscale': True,   # Converter para escala de cinza
+    'apply_threshold': True,        # Aplicar threshold
+    'remove_noise': True,           # Remover ruído
+    'smooth_image': True,           # Suavizar imagem
+    'enhance_contrast': True,       # Melhorar contraste
+    'resize_if_needed': True,       # Redimensionar se necessário
+    'max_width': 2000,              # Largura máxima da imagem
+    'max_height': 3000,             # Altura máxima da imagem
 }
 
 # =============================================================================
@@ -236,6 +266,8 @@ def get_config_section(section_name):
         'security': SECURITY_CONFIG,
         'performance': PERFORMANCE_CONFIG,
         'output': OUTPUT_CONFIG,
+        'ocr': OCR_CONFIG,
+        'image_preprocessing': IMAGE_PREPROCESSING_CONFIG,
     }
     
     return config_sections.get(section_name, {})

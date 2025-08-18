@@ -7,6 +7,19 @@ import PyPDF2
 import io
 import sys
 
+# Novas importações para OCR e processamento de imagens
+try:
+    import pytesseract
+    from PIL import Image
+    import cv2
+    import numpy as np
+    from pdf2image import convert_from_path
+    OCR_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Aviso: Algumas dependências de OCR não estão instaladas: {e}")
+    print("📦 Para instalar: pip install pytesseract Pillow pdf2image opencv-python")
+    OCR_AVAILABLE = False
+
 __version__ = "1.0.0"
 
 class DarmProcessor:
@@ -113,9 +126,17 @@ SELECT COUNT(*) as total FROM FarrDarmsPagos WHERE NR_GUIA = {numero_guia} AND A
                 print('📭 Nenhum statement válido para gerar o arquivo único.')
                 return
 
-            # Formato simplificado: uma linha por INSERT para compatibilidade com Control-M
+            # Formato formatado bonito para o arquivo consolidado
             single_sql_content = f"""use silfae;
-INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES {', '.join(simple_insert_statements)};"""
+
+INSERT INTO FarrDarmsPagos (
+    id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC,
+    CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO,
+    NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO,
+    VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS,
+    processado, criticaProcessamento
+) VALUES 
+    {',\n    '.join(simple_insert_statements)};"""
 
             # Validar se o conteúdo foi gerado corretamente
             if not single_sql_content or len(single_sql_content.strip()) < 100:
@@ -131,7 +152,7 @@ INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, 
             print('📄 Arquivo SQL único gerado: INSERT_TODOS_DARMs.sql')
             print(f'📊 Contém {len(simple_insert_statements)} INSERT statements')
             print('🔧 Formato: ISO 8859-1 (Latin-1) - Compatível com Control-M')
-            print('⚡ Versão: Simplificada (formato de uma linha) - Otimizada para Control-M')
+            print('✨ Versão: Formatada bonita - Legível e organizada')
             
             # Mostrar SQ_DOC gerados
             sq_docs_info = []
@@ -176,6 +197,13 @@ INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, 
 - ✅ **Sem comentários** - Arquivos SQL limpos
 - ✅ **Caracteres especiais removidos** - Acentos e símbolos convertidos
 - ✅ **Estrutura simplificada** - Otimizada para automação
+
+### Funcionalidades OCR:
+- ✅ **PDFs com texto em imagem** - Processamento automático com OCR
+- ✅ **Arquivos de imagem** - Suporte a PNG, JPG, BMP, TIFF
+- ✅ **Detecção automática** - Identifica se PDF precisa de OCR
+- ✅ **Pré-processamento de imagem** - Melhora qualidade do OCR
+- ✅ **Múltiplos idiomas** - Suporte ao português brasileiro
 
 ### Verificações de Segurança:
 - ✅ Controle de duplicatas por sessão
@@ -252,7 +280,7 @@ Gerado automaticamente pelo DarmProcessor (Python)
             print(f'❌ Erro ao verificar arquivos SQL: {error}')
 
     async def process_darms(self):
-        """Processar todos os DARMs"""
+        """Processar todos os DARMs (PDFs e imagens)"""
         try:
             print('🚀 Iniciando processamento dos DARMs...')
             
@@ -261,19 +289,32 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 print('❌ Diretório darms não encontrado!')
                 return
 
-            # Listar todos os arquivos PDF no diretório darms
-            pdf_files = [f for f in self.darms_dir.iterdir() 
-                        if f.suffix.lower() == '.pdf']
+            # Listar todos os arquivos suportados no diretório darms
+            supported_extensions = ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
+            all_files = [f for f in self.darms_dir.iterdir() 
+                        if f.suffix.lower() in supported_extensions]
 
-            if not pdf_files:
-                print('📭 Nenhum arquivo PDF encontrado no diretório darms.')
+            if not all_files:
+                print('📭 Nenhum arquivo suportado encontrado no diretório darms.')
+                print(f'📋 Formatos suportados: {", ".join(supported_extensions)}')
                 return
 
-            print(f'📁 Encontrados {len(pdf_files)} arquivos PDF para processar.')
+            print(f'📁 Encontrados {len(all_files)} arquivos para processar.')
+            
+            # Separar arquivos por tipo
+            pdf_files = [f for f in all_files if f.suffix.lower() == '.pdf']
+            image_files = [f for f in all_files if f.suffix.lower() in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']]
+            
+            print(f'📄 PDFs encontrados: {len(pdf_files)}')
+            print(f'🖼️  Imagens encontradas: {len(image_files)}')
 
             # Processar cada arquivo PDF
             for pdf_file in pdf_files:
-                await self.process_pdf_file(pdf_file)
+                await self.process_file(pdf_file, 'pdf')
+
+            # Processar cada arquivo de imagem
+            for image_file in image_files:
+                await self.process_file(image_file, 'image')
 
             # Verificar arquivos SQL gerados
             await self.verify_sql_files()
@@ -290,24 +331,30 @@ Gerado automaticamente pelo DarmProcessor (Python)
         except Exception as error:
             print(f'❌ Erro durante o processamento: {error}')
 
-    async def process_pdf_file(self, filepath):
-        """Processar um arquivo PDF específico"""
+    async def process_file(self, filepath, file_type):
+        """Processar um arquivo específico (PDF ou imagem)"""
         try:
-            print(f'Processando: {filepath.name}')
+            print(f'🔄 Processando {file_type.upper()}: {filepath.name}')
             
-            # Extrair texto do PDF
-            text = await self.extract_text_from_pdf(filepath)
+            # Extrair texto baseado no tipo de arquivo
+            if file_type == 'pdf':
+                text = await self.extract_text_from_pdf(filepath)
+            elif file_type == 'image':
+                text = await self.extract_text_from_image(filepath)
+            else:
+                print(f'❌ Tipo de arquivo não suportado: {file_type}')
+                return
             
             # Debug: mostrar primeiras linhas do texto extraído
-            print('=== TEXTO EXTRAÍDO DO PDF ===')
-            print(text[:500] + '...')
+            print('=== TEXTO EXTRAÍDO ===')
+            print(text[:500] + '...' if len(text) > 500 else text)
             print('==============================')
 
             # Extrair dados do DARM
             darm_data = self.extract_darm_data(text)
             
             if darm_data:
-                print('Dados extraídos:', darm_data)
+                print('✅ Dados extraídos:', darm_data)
                 
                 # Verificar se a guia já foi processada nesta sessão
                 if darm_data['numeroGuia'] in self.processed_guias:
@@ -356,16 +403,125 @@ Gerado automaticamente pelo DarmProcessor (Python)
             print(f'❌ Erro ao processar {filepath.name}: {error}')
 
     async def extract_text_from_pdf(self, filepath):
-        """Extrair texto de um arquivo PDF"""
+        """Extrair texto de um arquivo PDF - com suporte a OCR para imagens"""
         try:
+            # Primeiro, tentar extrair texto normalmente
             with open(filepath, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 text = ""
                 for page in pdf_reader.pages:
-                    text += page.extract_text()
-                return text
+                    page_text = page.extract_text()
+                    text += page_text
+                
+                # Se conseguiu extrair texto, retornar
+                if text.strip():
+                    print(f"✅ Texto extraído normalmente do PDF: {filepath.name}")
+                    return text
+                
+                # Se não conseguiu extrair texto, pode ser PDF com imagens
+                print(f"⚠️  PDF sem texto extraível detectado: {filepath.name}")
+                print("🔄 Tentando extrair texto usando OCR...")
+                
+                if not OCR_AVAILABLE:
+                    print("❌ OCR não disponível. Instale as dependências: pip install pytesseract Pillow pdf2image opencv-python")
+                    return ""
+                
+                # Converter PDF para imagens e usar OCR
+                return await self.extract_text_from_pdf_with_ocr(filepath)
+                
         except Exception as error:
             print(f'Erro ao extrair texto do PDF {filepath.name}: {error}')
+            return ""
+
+    async def extract_text_from_pdf_with_ocr(self, filepath):
+        """Extrair texto de PDF usando OCR (para PDFs com imagens)"""
+        try:
+            print(f"🔍 Convertendo PDF para imagens: {filepath.name}")
+            
+            # Converter PDF para imagens
+            images = convert_from_path(filepath, dpi=300)
+            
+            all_text = ""
+            for i, image in enumerate(images):
+                print(f"📄 Processando página {i+1}/{len(images)} com OCR...")
+                
+                # Converter PIL Image para OpenCV format
+                opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+                
+                # Pré-processar imagem para melhorar OCR
+                processed_image = self.preprocess_image_for_ocr(opencv_image)
+                
+                # Extrair texto usando Tesseract
+                page_text = pytesseract.image_to_string(processed_image, lang='por')
+                all_text += page_text + "\n"
+                
+                print(f"✅ Página {i+1} processada com OCR")
+            
+            if all_text.strip():
+                print(f"✅ Texto extraído com OCR: {len(all_text)} caracteres")
+                return all_text
+            else:
+                print("❌ Nenhum texto encontrado com OCR")
+                return ""
+                
+        except Exception as error:
+            print(f"❌ Erro ao extrair texto com OCR: {error}")
+            return ""
+
+    def preprocess_image_for_ocr(self, image):
+        """Pré-processar imagem para melhorar a qualidade do OCR"""
+        try:
+            # Converter para escala de cinza
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Aplicar threshold adaptativo para melhorar contraste
+            thresh = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+            )
+            
+            # Aplicar morfologia para remover ruído
+            kernel = np.ones((1, 1), np.uint8)
+            processed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+            
+            # Aplicar blur suave para suavizar
+            processed = cv2.GaussianBlur(processed, (1, 1), 0)
+            
+            return processed
+            
+        except Exception as error:
+            print(f"⚠️  Erro no pré-processamento da imagem: {error}")
+            return image
+
+    async def extract_text_from_image(self, filepath):
+        """Extrair texto de arquivo de imagem usando OCR"""
+        try:
+            if not OCR_AVAILABLE:
+                print("❌ OCR não disponível. Instale as dependências: pip install pytesseract Pillow opencv-python")
+                return ""
+            
+            print(f"🔍 Processando imagem com OCR: {filepath.name}")
+            
+            # Carregar imagem
+            image = cv2.imread(str(filepath))
+            if image is None:
+                print(f"❌ Não foi possível carregar a imagem: {filepath.name}")
+                return ""
+            
+            # Pré-processar imagem
+            processed_image = self.preprocess_image_for_ocr(image)
+            
+            # Extrair texto usando Tesseract
+            text = pytesseract.image_to_string(processed_image, lang='por')
+            
+            if text.strip():
+                print(f"✅ Texto extraído da imagem: {len(text)} caracteres")
+                return text
+            else:
+                print("❌ Nenhum texto encontrado na imagem")
+                return ""
+                
+        except Exception as error:
+            print(f"❌ Erro ao extrair texto da imagem: {error}")
             return ""
 
     def extract_darm_data(self, text):
@@ -375,22 +531,27 @@ Gerado automaticamente pelo DarmProcessor (Python)
             patterns = {
                 # Número de inscrição - múltiplos padrões
                 'inscricao': [
-                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d{8})',  # Exatamente 8 dígitos
-                    r'(?:Inscrição|INSCRIÇÃO|Inscrição Municipal|Inscrição)\s*:?\s*(\d{8})',  # Exatamente 8 dígitos
-                    r'(?:Inscrição|INSCRIÇÃO)\s*(\d{8})',  # Exatamente 8 dígitos
-                    r'Insc\.?\s*:?\s*(\d{8})'  # Exatamente 8 dígitos
+                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d{8,9})',  # 8 ou 9 dígitos
+                    r'(?:Inscrição|INSCRIÇÃO|Inscrição Municipal|Inscrição)\s*:?\s*(\d{8,9})',  # 8 ou 9 dígitos
+                    r'(?:Inscrição|INSCRIÇÃO)\s*(\d{8,9})',  # 8 ou 9 dígitos
+                    r'Insc\.?\s*:?\s*(\d{8,9})'  # 8 ou 9 dígitos
                 ],
                 
-                # Código de barras - pega todas as sequências de dígitos, junta tudo, remove pontos e espaços
+                # Código de barras - padrão específico para código de barras
                 'codigoBarras': [
-                    r'([\d\.\s]+)'
+                    r'(?:Código de Barras|CODIGO DE BARRAS)\s*:?\s*([\d\.\s]+)',
+                    r'(?:Barras|BARRAS)\s*:?\s*([\d\.\s]+)',
+                    r'([\d]{48})',  # Exatamente 48 dígitos
+                    r'([\d]{44,50})'  # Entre 44 e 50 dígitos
                 ],
                 
                 # Código de receita - extrair do campo RECEITA
                 'codigoReceita': [
-                    r'(?:RECEITA|Receita)\s*(\d{1,4}-\d{1,2})(?:[^\d]|$)',  # Parar em caractere não-número ou fim
-                    r'01\.\s*RECEITA\s*(\d{1,4}-\d{1,2})(?:[^\d]|$)',
-                    r'(\d{1,4})-(\d{1,2})(?:[^\d]|$)'  # Para formato como "262-3"
+                    r'01\.\s*RECEITA\s*\n(\d{1,4})-(\d{1,2})',  # Formato específico do PDF
+                    r'01\.\s*RECEITA\s*(\d{1,4})-(\d{1,2})',  # Formato alternativo
+                    r'(?:RECEITA|Receita|Código de Receita)\s*:?\s*(\d{1,4}-\d{1,2})',  # Formato genérico
+                    r'(\d{1,4})-(\d{1,2})',  # Para formato como "258-5"
+                    r'RECEITA\s*\n(\d{1,4})-(\d{1,2})'  # Formato mais específico
                 ],
                 
                 # Valor principal - múltiplos padrões
@@ -447,32 +608,20 @@ Gerado automaticamente pelo DarmProcessor (Python)
                     if match:
                         # Tratamento especial para código de receita no formato "XXX-X"
                         if key == 'codigoReceita' and len(match.groups()) > 1:
-                            data[key] = match.group(1) + match.group(2)  # Concatenar os dois números
+                            data[key] = match.group(1) + match.group(2)  # Concatenar sem hífen
+                            print(f'🔧 Código de receita extraído (concatenação): {data[key]}')
                         elif key == 'codigoReceita' and '-' in match.group(1):
-                            # Garantir que pega apenas o padrão correto (ex: 262-3)
-                            codigo_completo = match.group(1)
-                            # Verificar se o padrão é válido (números-hífen-números)
-                            if re.match(r'^\d{1,4}-\d{1,2}$', codigo_completo):
-                                data[key] = codigo_completo.replace('-', '')  # Remover hífen
-                            else:
-                                # Se não for padrão válido, tentar extrair apenas a parte correta
-                                partes = codigo_completo.split('-')
-                                if len(partes) >= 2:
-                                    # Pegar apenas os primeiros dígitos de cada parte
-                                    parte1 = partes[0][:4]  # Máximo 4 dígitos
-                                    parte2 = partes[1][:2]  # Máximo 2 dígitos
-                                    data[key] = parte1 + parte2
+                            # Manter o formato original com hífen
+                            data[key] = match.group(1)
+                            print(f'🔧 Código de receita extraído (com hífen): {data[key]}')
                         elif key == 'numeroGuia':
                             data[key] = match.group(1).lstrip('0') or '0'  # Remove zeros à esquerda
                         elif key == 'codigoBarras':
-                            # Pega todas as sequências de dígitos, pontos e espaços
-                            matches = re.findall(r'[\d\.\s]+', text)
-                            if matches:
-                                # Junta todas as sequências encontradas
-                                codigo = ''.join(matches)
-                                # Remove tudo que não for número e corta para 48 dígitos
-                                codigo = re.sub(r'\D', '', codigo)[:48]
-                                data[key] = codigo
+                            # Limpar o código de barras removendo espaços e pontos
+                            codigo = re.sub(r'[\s\.]', '', match.group(1))
+                            # Garantir que tem pelo menos 44 dígitos
+                            if len(codigo) >= 44:
+                                data[key] = codigo[:48]  # Limitar a 48 dígitos
                                 print(f'Campo {key} encontrado: {data[key]}')
                                 break
                         else:
@@ -524,7 +673,16 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 codigo_barras = re.sub(r'\D', '', str(darm_data['codigoBarras']))[:48]
 
             # Usar código de receita do PDF ou valor padrão
-            codigo_receita = darm_data.get('codigoReceita') or 2585
+            codigo_receita = darm_data.get('codigoReceita') or 2585  # Valor padrão hardcoded
+            # Se o código de receita tem hífen, converter para número
+            if isinstance(codigo_receita, str) and '-' in codigo_receita:
+                codigo_receita = codigo_receita.replace('-', '')
+                print(f'🔧 Código de receita processado: {codigo_receita}')
+            
+            # Forçar uso do valor padrão se o código extraído for inválido
+            if isinstance(codigo_receita, str) and len(codigo_receita) > 4:
+                print(f'⚠️  Código de receita extraído muito longo ({codigo_receita}), usando valor padrão 2585')
+                codigo_receita = 2585
 
             # Gerar expressão SQL para SQ_DOC dinâmico (6 dígitos: últimos 3 da guia + últimos 3 dos millisegundos)
             numero_guia = darm_data.get('numeroGuia', '0')
@@ -538,9 +696,18 @@ Gerado automaticamente pelo DarmProcessor (Python)
                 print('❌ Erro: Inscrição não encontrada')
                 return None
 
-            # Gerar SQL no formato simplificado (uma linha) para compatibilidade com Control-M
+            # Gerar SQL no formato formatado bonito
             sql = f"""use silfae;
-INSERT INTO FarrDarmsPagos (id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC, CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO, NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO, VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS, processado, criticaProcessamento) VALUES (NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1, {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL, NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(), '{inscricao}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'}, NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal}, 0.00, 0.00, NULL, NULL, NULL, 0.00, 0, NULL);"""
+
+INSERT INTO FarrDarmsPagos (
+    id, AA_EXERCICIO, CD_BANCO, NR_BDA, NR_COMPLEMENTO, NR_LOTE_NSA, TP_LOTE_D, SQ_DOC,
+    CD_RECEITA, CD_USU_ALT, CD_USU_INCL, DT_ALT, DT_INCL, DT_VENCTO, DT_PAGTO,
+    NR_INSCRICAO, NR_GUIA, NR_COMPETENCIA, NR_CODIGO_BARRAS, NR_LOTE_IPTU, ST_DOC_D, TP_IMPOSTO,
+    VL_PAGO, VL_RECEITA, VL_PRINCIPAL, VL_MORA, VL_MULTA, VL_MULTAF_TCDL, VL_MULTAP_TSD, VL_INSU_TIP, VL_JUROS,
+    processado, criticaProcessamento
+) VALUES (
+    NULL, {darm_data.get('exercicio', 2025)}, 70, 37, 0, 730, 1, {sq_doc_expression}, {codigo_receita}, NULL, 'FARR', NULL, NOW(), {f"'{data_vencimento}'" if data_vencimento else 'NULL'}, NOW(), '{inscricao}', {self.remove_leading_zeros(darm_data.get('numeroGuia', 'NULL'))}, {competencia or 'NULL'}, {f"'{codigo_barras}'" if codigo_barras else 'NULL'}, NULL, '13', NULL, {valor_total}, {valor_total}, {valor_principal}, 0.00, 0.00, NULL, NULL, NULL, 0.00, 0, NULL
+);"""
 
             # Validar se o SQL foi gerado corretamente
             if not sql or len(sql.strip()) < 50:
