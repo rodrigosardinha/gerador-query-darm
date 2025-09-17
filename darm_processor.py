@@ -531,7 +531,8 @@ Gerado automaticamente pelo DarmProcessor (Python)
             patterns = {
                 # Número de inscrição - múltiplos padrões
                 'inscricao': [
-                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d{8,9})',  # 8 ou 9 dígitos
+                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*\n?(\d{8,9})',  # 8 ou 9 dígitos (com quebra de linha)
+                    r'02\.\s*INSCRIÇÃO MUNICIPAL\s*(\d{8,9})',  # 8 ou 9 dígitos (sem quebra de linha)
                     r'(?:Inscrição|INSCRIÇÃO|Inscrição Municipal|Inscrição)\s*:?\s*(\d{8,9})',  # 8 ou 9 dígitos
                     r'(?:Inscrição|INSCRIÇÃO)\s*(\d{8,9})',  # 8 ou 9 dígitos
                     r'Insc\.?\s*:?\s*(\d{8,9})'  # 8 ou 9 dígitos
@@ -616,6 +617,14 @@ Gerado automaticamente pelo DarmProcessor (Python)
                             print(f'🔧 Código de receita extraído (com hífen): {data[key]}')
                         elif key == 'numeroGuia':
                             data[key] = match.group(1).lstrip('0') or '0'  # Remove zeros à esquerda
+                        elif key == 'inscricao':
+                            # Processar inscrição municipal - remover zero extra se necessário
+                            inscricao = match.group(1).strip()
+                            # Se tem 9 dígitos e termina com zero, remover o último dígito
+                            if len(inscricao) == 9 and inscricao.endswith('0'):
+                                inscricao = inscricao[:-1]
+                                print(f'🔧 Inscrição corrigida: {match.group(1)} -> {inscricao}')
+                            data[key] = inscricao
                         elif key == 'codigoBarras':
                             # Limpar o código de barras removendo espaços e pontos
                             codigo = re.sub(r'[\s\.]', '', match.group(1))

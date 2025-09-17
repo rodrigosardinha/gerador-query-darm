@@ -33,6 +33,7 @@ Este processador extrai automaticamente dados de arquivos PDF de DARMs e gera sc
 ### ✨ Principais Recursos
 
 - **🔍 Extração Inteligente de PDFs**: Processa automaticamente arquivos PDF de DARMs usando PyPDF2
+- **🖼️ Suporte a OCR**: Processa PDFs com texto em imagem e arquivos de imagem (PNG, JPG, etc.)
 - **💾 Geração de SQL Otimizada**: Cria scripts SQL individuais e consolidados
 - **🛡️ Controle de Duplicatas**: Evita processamento de guias já existentes
 - **📊 Relatórios Detalhados**: Gera relatórios completos do processamento
@@ -43,6 +44,9 @@ Este processador extrai automaticamente dados de arquivos PDF de DARMs e gera sc
 
 ### 🎯 Recursos Avançados
 
+- **🖼️ OCR Inteligente**: Reconhecimento óptico de caracteres para imagens e PDFs escaneados
+- **🔍 Detecção Automática**: Identifica automaticamente se PDF precisa de OCR
+- **🛠️ Pré-processamento**: Melhora qualidade de imagem para melhor OCR
 - **Validação de Dados**: Verifica integridade dos dados extraídos
 - **Scripts de Verificação**: Gera scripts para verificar existência no banco
 - **Tratamento de Erros**: Sistema robusto de tratamento de exceções
@@ -82,6 +86,10 @@ Este processador extrai automaticamente dados de arquivos PDF de DARMs e gera sc
 ```bash
 PyPDF2==3.0.1      # Extração de texto de PDFs
 pathlib2==2.3.7    # Manipulação de caminhos (compatibilidade)
+pytesseract==0.3.10 # OCR para imagens e PDFs
+Pillow==10.0.1     # Processamento de imagens
+pdf2image==1.16.3  # Conversão de PDF para imagem
+opencv-python==4.8.1.78 # Pré-processamento de imagem
 ```
 
 ### 🔧 Dependências do Sistema
@@ -102,10 +110,13 @@ cd gerador-query-darm
 # 2. Instale as dependências
 pip install -r requirements.txt
 
-# 3. Execute os testes
+# 3. (Opcional) Instale dependências de OCR
+python install_ocr.py
+
+# 4. Execute os testes
 python test_darm_processor.py
 
-# 4. Pronto para usar!
+# 5. Pronto para usar!
 python darm_processor.py
 ```
 
@@ -160,6 +171,26 @@ RUN pip install -r requirements.txt
 COPY . .
 CMD ["python", "darm_processor.py"]
 ```
+
+### 🖼️ Instalação de OCR (Opcional)
+
+Para processar PDFs com texto em imagem e arquivos de imagem:
+
+```bash
+# Instalar dependências de OCR
+python install_ocr.py
+```
+
+**Formatos suportados com OCR:**
+- PDFs com texto em imagem
+- PDFs escaneados
+- Imagens: PNG, JPG, JPEG, BMP, TIFF, TIF
+
+**Requisitos adicionais:**
+- Tesseract OCR instalado no sistema
+- Dependências Python: pytesseract, Pillow, pdf2image, opencv-python
+
+**Para mais detalhes, consulte:** [FUNCIONALIDADES_OCR.md](FUNCIONALIDADES_OCR.md)
 
 ## 📁 Estrutura do Projeto
 

@@ -1,0 +1,10 @@
+DARM - Documento de Arrecadação de Receitas Municipais
+
+Inscrição Municipal: 123456789
+Código de Barras: 021234560126230315122024042024051234567890612345
+Código de Receita: 26-30
+Valor Principal: R$ 1.234,56
+Valor Total: R$ 1.234,56
+Data de Vencimento: 15/12/2024
+Exercício: 2024
+Número da Guia: 123456789

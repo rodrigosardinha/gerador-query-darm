@@ -1,0 +1,30 @@
+# Exemplo de DARM Processado
+
+Este arquivo demonstra como o Processador de DARMs funciona.
+
+## Como testar:
+
+1. Coloque um PDF de DARM na pasta `darms/`
+2. Execute `Processador-DARM.exe`
+3. Verifique os arquivos SQL gerados na pasta `inserts/`
+
+## Arquivos gerados:
+
+- `INSERT_TODOS_DARMs.sql` - Script único com todos os registros
+- `INSERT_DARM_PAGO_*.sql` - Scripts individuais por guia
+- `CHECK_GUIA_*.sql` - Scripts de verificação
+- `RELATORIO_PROCESSAMENTO.md` - Relatório detalhado
+
+## Dados extraídos:
+
+- Inscrição Municipal
+- Número da Guia
+- Código de Receita
+- Valores (Principal, Total)
+- Data de Vencimento
+- Exercício
+- Código de Barras
+- Competência
+
+---
+Processador de DARMs v1.0.0
